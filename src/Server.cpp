@@ -8,6 +8,19 @@
 #include <cstring>
 #include <iostream>
 #include <string>
+#include <thread>
+
+void process_request(int client_fd) {
+  char buffer[1024];
+  while (true) {
+    memset(buffer, 0, sizeof(buffer));
+    int bytes_received = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
+    if (bytes_received <= 0) break;
+
+    std::string response = "+PONG\r\n";
+    send(client_fd, response.c_str(), response.size(), 0);
+  }
+}
 
 int main(int argc, char **argv) {
   // Flush after every std::cout / std::cerr
@@ -55,17 +68,12 @@ int main(int argc, char **argv) {
   std::cout << "Logs from your program will appear here!\n";
 
   // Uncomment this block to pass the first stage
-  int client_fd = accept(server_fd, (struct sockaddr *)&client_addr,
-                         (socklen_t *)&client_addr_len);
-  std::cout << "Client connected\n";
-  char buffer[1024];
   while (true) {
-    memset(buffer, 0, sizeof(buffer));
-    int bytes_received = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
-    if (bytes_received <= 0) break;
-
-    std::string response = "+PONG\r\n";
-    send(client_fd, response.c_str(), response.size(), 0);
+    int client_fd = accept(server_fd, (struct sockaddr *)&client_addr,
+                           (socklen_t *)&client_addr_len);
+    std::cout << "Client connected\n";
+    std::thread t(process_request, client_fd);
+    t.detach();
   }
   close(server_fd);
   return 0;
