@@ -9,6 +9,7 @@
 #include <cstring>
 #include <iostream>
 #include <map>
+#include <optional>
 #include <string>
 #include <thread>
 #include <vector>
@@ -91,8 +92,25 @@ std::string construct_bulk_string(std::string str) {
   return response;
 }
 
+struct Varval {
+  std::string val;
+  std::optional<std::chrono::time_point<std::chrono::high_resolution_clock>>
+      expiry_time;
+
+  Varval() {}
+  Varval(std::string new_val, int expiry_milliseconds = -1)
+      : val(std::move(new_val)) {
+    if (expiry_milliseconds == -1) {
+      expiry_time = std::nullopt;
+    } else {
+      expiry_time = std::chrono::high_resolution_clock::now() +
+                    std::chrono::milliseconds(expiry_milliseconds);
+    }
+  }
+};
+
 void process_client(int client_socket) {
-  std::map<std::string, std::string> variables;
+  std::map<std::string, Varval> variables;
   while (true) {
     std::string res = read_request(client_socket);
     if (res == "") return;
@@ -113,8 +131,17 @@ void process_client(int client_socket) {
       std::string response = construct_bulk_string(elements[1]);
       send(client_socket, response.c_str(), response.size(), 0);
     } else if (elements[0] == "SET") {
-      if ((int)elements.size() != 3) throw std::string("Invalid SET operation");
-      variables[elements[1]] = elements[2];
+      if ((int)elements.size() < 3) throw std::string("Invalid SET operation");
+      if (elements.size() == 5) {
+        if (elements[3] == "px") {
+          variables[elements[1]] = Varval(elements[2], std::stoi(elements[4]));
+        } else {
+          throw std::string("No px identifier found");
+        }
+      } 
+      if (elements.size() == 3) {
+        variables[elements[1]] = Varval(elements[2]);
+      }
       send(client_socket, OK_string.c_str(), OK_string.size(), 0);
     } else if (elements[0] == "GET") {
       if (variables.find(elements[1]) == variables.end()) {
@@ -122,8 +149,14 @@ void process_client(int client_socket) {
              0);
       } else {
         auto val = variables[elements[1]];
-        std::string response = construct_bulk_string(val);
-        send(client_socket, response.c_str(), response.size(), 0);
+        if (val.expiry_time && *val.expiry_time <= std::chrono::high_resolution_clock::now()) {
+          variables.erase(elements[1]);
+          send(client_socket, null_bulk_string.c_str(), null_bulk_string.size(),
+               0);
+        } else {
+          std::string response = construct_bulk_string(val.val);
+          send(client_socket, response.c_str(), response.size(), 0);
+        }
       }
     } else {
       std::string response = "+PONG\r\n";
