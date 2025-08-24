@@ -70,9 +70,15 @@ void handle_lrange(int client_socket,
                    std::map<std::string, std::vector<std::string>> &lists,
                    std::vector<std::string> &elements) {
   if ((int)elements.size() < 4) throw std::string("Invalid LRANGE operation");
+  if (lists.find(elements[1]) == lists.end()) {
+    send(client_socket, empty_array.c_str(), empty_array.size(), 0);
+    return;
+  }
   int l = std::stoi(elements[2]);
   int r = std::stoi(elements[3]);
   r = std::min(r, (int)lists[elements[1]].size() - 1);
+  if (l < 0) l = std::max(0, (int)lists[elements[1]].size() + l);
+  if (r < 0) r = std::max(0, (int)lists[elements[1]].size() + r);
   std::vector<std::string> res;
   for (int i = l; i <= r; i++) {
     res.push_back(lists[elements[1]][i]);
