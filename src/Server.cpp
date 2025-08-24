@@ -14,12 +14,13 @@
 #include <thread>
 #include <vector>
 
-#include "request_handler.hpp"
-#include "types.hpp"
 #include "command_handler.hpp"
 #include "constant.hpp"
+#include "request_handler.hpp"
+#include "types.hpp"
 
 void process_client(int client_socket) {
+  std::map<std::string, std::vector<std::string>> lists;
   std::map<std::string, Varval> variables;
   while (true) {
     std::string res = read_request(client_socket);
@@ -36,6 +37,8 @@ void process_client(int client_socket) {
       handle_set(client_socket, variables, elements);
     } else if (elements[0] == "GET") {
       handle_get(client_socket, variables, elements);
+    } else if (elements[0] == "RPUSH") {
+      handle_rpush(client_socket, lists, elements);
     } else {
       handle_ping(client_socket);
     }

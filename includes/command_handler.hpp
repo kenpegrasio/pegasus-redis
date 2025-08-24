@@ -3,14 +3,14 @@
 
 #include <sys/socket.h>
 
+#include <chrono>
 #include <map>
 #include <string>
 #include <vector>
-#include <chrono>
 
-#include "types.hpp"
-#include "response_constructor.hpp"
 #include "constant.hpp"
+#include "response_constructor.hpp"
+#include "types.hpp"
 
 void handle_ping(int client_socket) {
   std::string response = "+PONG\r\n";
@@ -53,6 +53,14 @@ void handle_get(int client_socket, std::map<std::string, Varval> &variables,
       send(client_socket, response.c_str(), response.size(), 0);
     }
   }
+}
+
+void handle_rpush(int client_socket,
+                  std::map<std::string, std::vector<std::string>> &lists,
+                  std::vector<std::string> &elements) {
+  lists[elements[1]].push_back(elements[2]);
+  std::string response = construct_integer(lists[elements[1]].size());
+  send(client_socket, response.c_str(), response.size(), 0);
 }
 
 #endif
