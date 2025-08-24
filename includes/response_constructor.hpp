@@ -39,4 +39,14 @@ std::string construct_integer(int val) {
   return response;
 }
 
+std::string construct_array(std::vector<std::string> v) {
+  std::string response = "*";
+  response += std::to_string(v.size());
+  response += "\r\n";
+  for (auto element : v) {
+    response += construct_bulk_string(element);
+  }
+  return response;
+}
+
 #endif

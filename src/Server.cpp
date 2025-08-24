@@ -39,6 +39,8 @@ void process_client(int client_socket) {
       handle_get(client_socket, variables, elements);
     } else if (elements[0] == "RPUSH") {
       handle_rpush(client_socket, lists, elements);
+    } else if (elements[0] == "LRANGE") {
+      handle_lrange(client_socket, lists, elements);
     } else {
       handle_ping(client_socket);
     }

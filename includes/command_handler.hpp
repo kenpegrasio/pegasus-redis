@@ -66,4 +66,19 @@ void handle_rpush(int client_socket,
   send(client_socket, response.c_str(), response.size(), 0);
 }
 
+void handle_lrange(int client_socket,
+                   std::map<std::string, std::vector<std::string>> &lists,
+                   std::vector<std::string> &elements) {
+  if ((int)elements.size() < 4) throw std::string("Invalid LRANGE operation");
+  int l = std::stoi(elements[2]);
+  int r = std::stoi(elements[3]);
+  r = std::min(r, (int)lists[elements[1]].size() - 1);
+  std::vector<std::string> res;
+  for (int i = l; i <= r; i++) {
+    res.push_back(lists[elements[1]][i]);
+  }
+  std::string response = construct_array(res);
+  send(client_socket, response.c_str(), response.size(), 0);
+}
+
 #endif
