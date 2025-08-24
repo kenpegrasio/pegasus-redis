@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include <map>
 #include <string>
 #include <thread>
 #include <vector>
@@ -69,7 +70,10 @@ std::string read_request(int client_socket) {
   return res;
 }
 
-std::string send_string_response(std::string str) {
+const std::string OK_string = "+OK\r\n";
+const std::string null_bulk_string = "$-1\r\n";
+
+std::string construct_bulk_string(std::string str) {
   std::string response = "$";
   int sz = str.size();
   std::vector<int> digits;
@@ -88,6 +92,7 @@ std::string send_string_response(std::string str) {
 }
 
 void process_client(int client_socket) {
+  std::map<std::string, std::string> variables;
   while (true) {
     std::string res = read_request(client_socket);
     if (res == "") return;
@@ -105,8 +110,21 @@ void process_client(int client_socket) {
       std::string response = "+PONG\r\n";
       send(client_socket, response.c_str(), response.size(), 0);
     } else if (elements[0] == "ECHO") {
-      std::string response = send_string_response(elements[1]);
+      std::string response = construct_bulk_string(elements[1]);
       send(client_socket, response.c_str(), response.size(), 0);
+    } else if (elements[0] == "SET") {
+      if ((int)elements.size() != 3) throw std::string("Invalid SET operation");
+      variables[elements[1]] = elements[2];
+      send(client_socket, OK_string.c_str(), OK_string.size(), 0);
+    } else if (elements[0] == "GET") {
+      if (variables.find(elements[1]) == variables.end()) {
+        send(client_socket, null_bulk_string.c_str(), null_bulk_string.size(),
+             0);
+      } else {
+        auto val = variables[elements[1]];
+        std::string response = construct_bulk_string(val);
+        send(client_socket, response.c_str(), response.size(), 0);
+      }
     } else {
       std::string response = "+PONG\r\n";
       send(client_socket, response.c_str(), response.size(), 0);
