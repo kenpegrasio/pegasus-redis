@@ -58,7 +58,10 @@ void handle_get(int client_socket, std::map<std::string, Varval> &variables,
 void handle_rpush(int client_socket,
                   std::map<std::string, std::vector<std::string>> &lists,
                   std::vector<std::string> &elements) {
-  lists[elements[1]].push_back(elements[2]);
+  if ((int)elements.size() < 3) throw std::string("Invalid RPUSH operation");
+  for (int i = 2; i < (int)elements.size(); i++) {
+    lists[elements[1]].push_back(elements[i]);
+  }
   std::string response = construct_integer(lists[elements[1]].size());
   send(client_socket, response.c_str(), response.size(), 0);
 }
