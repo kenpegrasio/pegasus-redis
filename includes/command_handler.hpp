@@ -113,13 +113,27 @@ void handle_llen(int client_socket,
 void handle_lpop(int client_socket,
                  std::map<std::string, CircularBuffer<std::string>> &lists,
                  std::vector<std::string> &elements) {
-  if (elements.size() != 2) throw std::string("Invalid LPOP operation");
-  if (lists.find(elements[1]) == lists.end() || lists[elements[1]].size() == 0) {
+  if (elements.size() != 2 && elements.size() != 3)
+    throw std::string("Invalid LPOP operation");
+  if (lists.find(elements[1]) == lists.end() ||
+      lists[elements[1]].size() == 0) {
     send(client_socket, null_bulk_string.c_str(), null_bulk_string.size(), 0);
   } else {
-    std::string response = construct_bulk_string(lists[elements[1]].front());
-    lists[elements[1]].pop_front();
-    send(client_socket, response.c_str(), response.size(), 0);
+    if (elements.size() == 2) {
+      std::string response = construct_bulk_string(lists[elements[1]].front());
+      lists[elements[1]].pop_front();
+      send(client_socket, response.c_str(), response.size(), 0);
+    } else {
+      int cnt = std::stoi(elements[2]);
+      cnt = std::min(cnt, lists[elements[1]].size());
+      std::vector<std::string> res;
+      for (int i = 0; i < cnt; i++) {
+        res.push_back(lists[elements[1]].front());
+        lists[elements[1]].pop_front();
+      }
+      std::string response = construct_array(res);
+      send(client_socket, response.c_str(), response.size(), 0);
+    }
   }
 }
 
