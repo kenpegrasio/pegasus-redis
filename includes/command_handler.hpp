@@ -66,6 +66,17 @@ void handle_rpush(int client_socket,
   send(client_socket, response.c_str(), response.size(), 0);
 }
 
+void handle_lpush(int client_socket,
+                  std::map<std::string, CircularBuffer<std::string>> &lists,
+                  std::vector<std::string> &elements) {
+  if ((int)elements.size() < 3) throw std::string("Invalid LPUSH operation");
+  for (int i = 2; i < (int)elements.size(); i++) {
+    lists[elements[1]].push_front(elements[i]);
+  }
+  std::string response = construct_integer(lists[elements[1]].size());
+  send(client_socket, response.c_str(), response.size(), 0);
+}
+
 void handle_lrange(int client_socket,
                    std::map<std::string, CircularBuffer<std::string>> &lists,
                    std::vector<std::string> &elements) {
