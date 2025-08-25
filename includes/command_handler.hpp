@@ -98,4 +98,14 @@ void handle_lrange(int client_socket,
   send(client_socket, response.c_str(), response.size(), 0);
 }
 
+void handle_llen(int client_socket, std::map<std::string, CircularBuffer<std::string>>& lists, std::vector<std::string>& elements)  {
+  if (elements.size() != 2) throw std::string("Invalid LLEN operation");
+  if (lists.find(elements[1]) == lists.end()) {
+    send(client_socket, zero_integer.c_str(), zero_integer.size(), 0);
+  } else {
+    std::string response = construct_integer(lists[elements[1]].size());
+    send(client_socket, response.c_str(), response.size(), 0);
+  }
+}
+
 #endif

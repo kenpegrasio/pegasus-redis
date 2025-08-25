@@ -43,6 +43,8 @@ void process_client(int client_socket) {
       handle_lrange(client_socket, lists, elements);
     } else if (elements[0] == "LPUSH") {
       handle_lpush(client_socket, lists, elements);
+    } else if (elements[0] == "LLEN") {
+      handle_llen(client_socket, lists, elements);
     } else {
       handle_ping(client_socket);
     }
