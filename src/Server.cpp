@@ -20,7 +20,7 @@
 #include "types.hpp"
 
 void process_client(int client_socket) {
-  std::map<std::string, std::vector<std::string>> lists;
+  std::map<std::string, CircularBuffer<std::string>> lists;
   std::map<std::string, Varval> variables;
   while (true) {
     std::string res = read_request(client_socket);

@@ -56,7 +56,7 @@ void handle_get(int client_socket, std::map<std::string, Varval> &variables,
 }
 
 void handle_rpush(int client_socket,
-                  std::map<std::string, std::vector<std::string>> &lists,
+                  std::map<std::string, CircularBuffer<std::string>> &lists,
                   std::vector<std::string> &elements) {
   if ((int)elements.size() < 3) throw std::string("Invalid RPUSH operation");
   for (int i = 2; i < (int)elements.size(); i++) {
@@ -67,7 +67,7 @@ void handle_rpush(int client_socket,
 }
 
 void handle_lrange(int client_socket,
-                   std::map<std::string, std::vector<std::string>> &lists,
+                   std::map<std::string, CircularBuffer<std::string>> &lists,
                    std::vector<std::string> &elements) {
   if ((int)elements.size() < 4) throw std::string("Invalid LRANGE operation");
   if (lists.find(elements[1]) == lists.end()) {
