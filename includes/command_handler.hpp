@@ -98,12 +98,27 @@ void handle_lrange(int client_socket,
   send(client_socket, response.c_str(), response.size(), 0);
 }
 
-void handle_llen(int client_socket, std::map<std::string, CircularBuffer<std::string>>& lists, std::vector<std::string>& elements)  {
+void handle_llen(int client_socket,
+                 std::map<std::string, CircularBuffer<std::string>> &lists,
+                 std::vector<std::string> &elements) {
   if (elements.size() != 2) throw std::string("Invalid LLEN operation");
   if (lists.find(elements[1]) == lists.end()) {
     send(client_socket, zero_integer.c_str(), zero_integer.size(), 0);
   } else {
     std::string response = construct_integer(lists[elements[1]].size());
+    send(client_socket, response.c_str(), response.size(), 0);
+  }
+}
+
+void handle_lpop(int client_socket,
+                 std::map<std::string, CircularBuffer<std::string>> &lists,
+                 std::vector<std::string> &elements) {
+  if (elements.size() != 2) throw std::string("Invalid LPOP operation");
+  if (lists.find(elements[1]) == lists.end() || lists[elements[1]].size() == 0) {
+    send(client_socket, null_bulk_string.c_str(), null_bulk_string.size(), 0);
+  } else {
+    std::string response = construct_bulk_string(lists[elements[1]].front());
+    lists[elements[1]].pop_front();
     send(client_socket, response.c_str(), response.size(), 0);
   }
 }
