@@ -63,11 +63,17 @@ void handle_rpush(int client_socket, std::vector<std::string> &elements) {
       std::unique_lock<std::mutex> lock(lists_mutex[elements[1]]);
       lists[elements[1]].push_back(elements[i]);
     }
+    std::unique_lock<std::mutex> lock(queue_mutex[elements[1]]);
+    while (!block_queue[elements[1]].empty() &&
+           block_queue[elements[1]].front().expiry_time.has_value() &&
+           std::chrono::high_resolution_clock::now() >=
+               *block_queue[elements[1]].front().expiry_time) {
+      block_queue[elements[1]].pop();
+    }
     if (!block_queue[elements[1]].empty()) {
-      auto [cv_ptr, ready_ptr] = block_queue[elements[1]].front();
+      auto [cv_ptr, ready_ptr, timeout] = block_queue[elements[1]].front();
       *ready_ptr = true;
       (*cv_ptr).notify_one();
-      std::unique_lock<std::mutex> lock(queue_mutex[elements[1]]);
       block_queue[elements[1]].pop();
     }
   }
@@ -82,11 +88,17 @@ void handle_lpush(int client_socket, std::vector<std::string> &elements) {
       std::unique_lock<std::mutex> lock(lists_mutex[elements[1]]);
       lists[elements[1]].push_front(elements[i]);
     }
+    std::unique_lock<std::mutex> lock(queue_mutex[elements[1]]);
+    while (!block_queue[elements[1]].empty() &&
+           block_queue[elements[1]].front().expiry_time.has_value() &&
+           std::chrono::high_resolution_clock::now() >=
+               *block_queue[elements[1]].front().expiry_time) {
+      block_queue[elements[1]].pop();
+    }
     if (!block_queue[elements[1]].empty()) {
-      auto [cv_ptr, ready_ptr] = block_queue[elements[1]].front();
+      auto [cv_ptr, ready_ptr, timeout] = block_queue[elements[1]].front();
       *ready_ptr = true;
       (*cv_ptr).notify_one();
-      std::unique_lock<std::mutex> lock(queue_mutex[elements[1]]);
       block_queue[elements[1]].pop();
     }
   }
@@ -153,6 +165,7 @@ void handle_lpop(int client_socket, std::vector<std::string> &elements) {
 
 void handle_blpop(int client_socket, std::vector<std::string> &elements) {
   auto name = elements[1];
+  auto timeout = std::stod(elements[2]);
   {
     std::unique_lock<std::mutex> lock(lists_mutex[elements[1]]);
     if (lists.find(name) != lists.end() && lists[name].size() > 0) {
@@ -165,9 +178,18 @@ void handle_blpop(int client_socket, std::vector<std::string> &elements) {
   std::unique_lock<std::mutex> lock_queue(queue_mutex[name]);
   std::condition_variable cv;
   bool ready = false;
-  QueueElement new_entry = QueueElement(&cv, &ready);
+  QueueElement new_entry = QueueElement(&cv, &ready, timeout);
   block_queue[name].push(new_entry);
-  cv.wait(lock_queue, [&ready] { return ready; });
+  if (new_entry.expiry_time.has_value()) {
+    cv.wait_until(lock_queue, *new_entry.expiry_time,
+                  [&ready] { return ready; });
+  } else {
+    cv.wait(lock_queue, [&ready] { return ready; });
+  }
+  if (new_entry.expiry_time.has_value() && std::chrono::high_resolution_clock::now() >= *new_entry.expiry_time) {
+    send(client_socket, null_array.c_str(), null_array.size(), 0);
+    return;
+  }
   std::unique_lock<std::mutex> lock_list(lists_mutex[name]);
   std::string response = construct_array({name, lists[name].front()});
   lists[name].pop_front();

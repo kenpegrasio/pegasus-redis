@@ -2,17 +2,26 @@
 #define TYPES_HPP
 
 #include <chrono>
+#include <condition_variable>
 #include <optional>
 #include <string>
-#include <condition_variable>
 
 struct QueueElement {
   std::condition_variable* cond_ptr;
   bool* ready;
+  std::optional<std::chrono::time_point<std::chrono::high_resolution_clock>>
+      expiry_time;
 
-  QueueElement(std::condition_variable* new_cond_ptr, bool* new_ready) {
+  QueueElement(std::condition_variable* new_cond_ptr, bool* new_ready,
+               double timeout) {
     cond_ptr = new_cond_ptr;
     ready = new_ready;
+    if (timeout == 0) {
+      expiry_time = std::nullopt;
+    } else {
+      expiry_time = std::chrono::high_resolution_clock::now() +
+                    std::chrono::milliseconds((int) (timeout * 1000));
+    }
   }
 };
 
