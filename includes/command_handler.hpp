@@ -4,6 +4,7 @@
 #include <sys/socket.h>
 
 #include <chrono>
+#include <condition_variable>
 #include <map>
 #include <string>
 #include <vector>
@@ -22,11 +23,11 @@ void handle_echo(int client_socket, std::vector<std::string> &elements) {
   send(client_socket, response.c_str(), response.size(), 0);
 }
 
-void handle_set(int client_socket, std::map<std::string, Varval> &variables,
-                std::vector<std::string> &elements) {
+void handle_set(int client_socket, std::vector<std::string> &elements) {
   if ((int)elements.size() < 3) throw std::string("Invalid SET operation");
+  std::unique_lock<std::mutex> lock(variables_mutex[elements[1]]);
   if (elements.size() == 5) {
-    if (elements[3] == "px") {
+    if (elements[3] == "px" || elements[3] == "PX") {
       variables[elements[1]] = Varval(elements[2], std::stoi(elements[4]));
     } else {
       throw std::string("No px identifier found");
@@ -38,8 +39,8 @@ void handle_set(int client_socket, std::map<std::string, Varval> &variables,
   send(client_socket, OK_string.c_str(), OK_string.size(), 0);
 }
 
-void handle_get(int client_socket, std::map<std::string, Varval> &variables,
-                std::vector<std::string> &elements) {
+void handle_get(int client_socket, std::vector<std::string> &elements) {
+  std::unique_lock<std::mutex> lock(variables_mutex[elements[1]]);
   if (variables.find(elements[1]) == variables.end()) {
     send(client_socket, null_bulk_string.c_str(), null_bulk_string.size(), 0);
   } else {
@@ -55,32 +56,47 @@ void handle_get(int client_socket, std::map<std::string, Varval> &variables,
   }
 }
 
-void handle_rpush(int client_socket,
-                  std::map<std::string, CircularBuffer<std::string>> &lists,
-                  std::vector<std::string> &elements) {
+void handle_rpush(int client_socket, std::vector<std::string> &elements) {
   if ((int)elements.size() < 3) throw std::string("Invalid RPUSH operation");
   for (int i = 2; i < (int)elements.size(); i++) {
-    lists[elements[1]].push_back(elements[i]);
+    {
+      std::unique_lock<std::mutex> lock(lists_mutex[elements[1]]);
+      lists[elements[1]].push_back(elements[i]);
+    }
+    if (!block_queue[elements[1]].empty()) {
+      auto [cv_ptr, ready_ptr] = block_queue[elements[1]].front();
+      *ready_ptr = true;
+      (*cv_ptr).notify_one();
+      std::unique_lock<std::mutex> lock(queue_mutex[elements[1]]);
+      block_queue[elements[1]].pop();
+    }
   }
   std::string response = construct_integer(lists[elements[1]].size());
   send(client_socket, response.c_str(), response.size(), 0);
 }
 
-void handle_lpush(int client_socket,
-                  std::map<std::string, CircularBuffer<std::string>> &lists,
-                  std::vector<std::string> &elements) {
+void handle_lpush(int client_socket, std::vector<std::string> &elements) {
   if ((int)elements.size() < 3) throw std::string("Invalid LPUSH operation");
   for (int i = 2; i < (int)elements.size(); i++) {
-    lists[elements[1]].push_front(elements[i]);
+    {
+      std::unique_lock<std::mutex> lock(lists_mutex[elements[1]]);
+      lists[elements[1]].push_front(elements[i]);
+    }
+    if (!block_queue[elements[1]].empty()) {
+      auto [cv_ptr, ready_ptr] = block_queue[elements[1]].front();
+      *ready_ptr = true;
+      (*cv_ptr).notify_one();
+      std::unique_lock<std::mutex> lock(queue_mutex[elements[1]]);
+      block_queue[elements[1]].pop();
+    }
   }
   std::string response = construct_integer(lists[elements[1]].size());
   send(client_socket, response.c_str(), response.size(), 0);
 }
 
-void handle_lrange(int client_socket,
-                   std::map<std::string, CircularBuffer<std::string>> &lists,
-                   std::vector<std::string> &elements) {
+void handle_lrange(int client_socket, std::vector<std::string> &elements) {
   if ((int)elements.size() < 4) throw std::string("Invalid LRANGE operation");
+  std::unique_lock<std::mutex> lock(lists_mutex[elements[1]]);
   if (lists.find(elements[1]) == lists.end()) {
     send(client_socket, empty_array.c_str(), empty_array.size(), 0);
     return;
@@ -98,10 +114,9 @@ void handle_lrange(int client_socket,
   send(client_socket, response.c_str(), response.size(), 0);
 }
 
-void handle_llen(int client_socket,
-                 std::map<std::string, CircularBuffer<std::string>> &lists,
-                 std::vector<std::string> &elements) {
+void handle_llen(int client_socket, std::vector<std::string> &elements) {
   if (elements.size() != 2) throw std::string("Invalid LLEN operation");
+  std::unique_lock<std::mutex> lock(lists_mutex[elements[1]]);
   if (lists.find(elements[1]) == lists.end()) {
     send(client_socket, zero_integer.c_str(), zero_integer.size(), 0);
   } else {
@@ -110,11 +125,10 @@ void handle_llen(int client_socket,
   }
 }
 
-void handle_lpop(int client_socket,
-                 std::map<std::string, CircularBuffer<std::string>> &lists,
-                 std::vector<std::string> &elements) {
+void handle_lpop(int client_socket, std::vector<std::string> &elements) {
   if (elements.size() != 2 && elements.size() != 3)
     throw std::string("Invalid LPOP operation");
+  std::unique_lock<std::mutex> lock(lists_mutex[elements[1]]);
   if (lists.find(elements[1]) == lists.end() ||
       lists[elements[1]].size() == 0) {
     send(client_socket, null_bulk_string.c_str(), null_bulk_string.size(), 0);
@@ -135,6 +149,29 @@ void handle_lpop(int client_socket,
       send(client_socket, response.c_str(), response.size(), 0);
     }
   }
+}
+
+void handle_blpop(int client_socket, std::vector<std::string> &elements) {
+  auto name = elements[1];
+  {
+    std::unique_lock<std::mutex> lock(lists_mutex[elements[1]]);
+    if (lists.find(name) != lists.end() && lists[name].size() > 0) {
+      std::string response = construct_bulk_string(lists[name].front());
+      lists[name].pop_front();
+      send(client_socket, response.c_str(), response.size(), 0);
+      return;
+    }
+  }
+  std::unique_lock<std::mutex> lock_queue(queue_mutex[name]);
+  std::condition_variable cv;
+  bool ready = false;
+  QueueElement new_entry = QueueElement(&cv, &ready);
+  block_queue[name].push(new_entry);
+  cv.wait(lock_queue, [&ready] { return ready; });
+  std::unique_lock<std::mutex> lock_list(lists_mutex[name]);
+  std::string response = construct_array({name, lists[name].front()});
+  lists[name].pop_front();
+  send(client_socket, response.c_str(), response.size(), 0);
 }
 
 #endif

@@ -9,19 +9,27 @@
 #include <cstring>
 #include <iostream>
 #include <map>
+#include <mutex>
 #include <optional>
+#include <queue>
 #include <string>
 #include <thread>
 #include <vector>
 
+#include "types.hpp"
+
+std::map<std::string, std::queue<QueueElement>> block_queue;
+std::map<std::string, std::mutex> queue_mutex;
+std::map<std::string, CircularBuffer<std::string>> lists;
+std::map<std::string, std::mutex> lists_mutex;
+std::map<std::string, Varval> variables;
+std::map<std::string, std::mutex> variables_mutex;
+
 #include "command_handler.hpp"
 #include "constant.hpp"
 #include "request_handler.hpp"
-#include "types.hpp"
 
 void process_client(int client_socket) {
-  std::map<std::string, CircularBuffer<std::string>> lists;
-  std::map<std::string, Varval> variables;
   while (true) {
     std::string res = read_request(client_socket);
     if (res == "") return;
@@ -34,19 +42,21 @@ void process_client(int client_socket) {
     } else if (elements[0] == "ECHO") {
       handle_echo(client_socket, elements);
     } else if (elements[0] == "SET") {
-      handle_set(client_socket, variables, elements);
+      handle_set(client_socket, elements);
     } else if (elements[0] == "GET") {
-      handle_get(client_socket, variables, elements);
+      handle_get(client_socket, elements);
     } else if (elements[0] == "RPUSH") {
-      handle_rpush(client_socket, lists, elements);
+      handle_rpush(client_socket, elements);
     } else if (elements[0] == "LRANGE") {
-      handle_lrange(client_socket, lists, elements);
+      handle_lrange(client_socket, elements);
     } else if (elements[0] == "LPUSH") {
-      handle_lpush(client_socket, lists, elements);
+      handle_lpush(client_socket, elements);
     } else if (elements[0] == "LLEN") {
-      handle_llen(client_socket, lists, elements);
+      handle_llen(client_socket, elements);
     } else if (elements[0] == "LPOP") {
-      handle_lpop(client_socket, lists, elements);
+      handle_lpop(client_socket, elements);
+    } else if (elements[0] == "BLPOP") {
+      handle_blpop(client_socket, elements);
     } else {
       handle_ping(client_socket);
     }

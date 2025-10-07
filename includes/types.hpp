@@ -4,6 +4,17 @@
 #include <chrono>
 #include <optional>
 #include <string>
+#include <condition_variable>
+
+struct QueueElement {
+  std::condition_variable* cond_ptr;
+  bool* ready;
+
+  QueueElement(std::condition_variable* new_cond_ptr, bool* new_ready) {
+    cond_ptr = new_cond_ptr;
+    ready = new_ready;
+  }
+};
 
 struct Varval {
   std::string val;
@@ -44,6 +55,8 @@ class CircularBuffer {
       : buffer(initial_size), cur_size(0), front_idx(0) {}
 
   int size() { return cur_size; }
+
+  bool empty() { return cur_size == 0; }
 
   void push_back(T new_element) {
     if (cur_size == buffer.size()) resize();
