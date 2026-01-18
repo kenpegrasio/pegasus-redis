@@ -1,33 +1,52 @@
 [![progress-banner](https://backend.codecrafters.io/progress/redis/570b22ed-31f4-49e3-887b-af41a87432c4)](https://app.codecrafters.io/users/codecrafters-bot?r=2qF)
 
-This is a starting point for C++ solutions to the
-["Build Your Own Redis" Challenge](https://codecrafters.io/challenges/redis).
+This is my C++ solutions to the ["Build Your Own Redis" Challenge](https://codecrafters.io/challenges/redis).
 
-In this challenge, you'll build a toy Redis clone that's capable of handling
-basic commands like `PING`, `SET` and `GET`. Along the way we'll learn about
-event loops, the Redis protocol and more.
+# Setup Instruction (WSL)
 
-**Note**: If you're viewing this repo on GitHub, head over to
-[codecrafters.io](https://codecrafters.io) to try the challenge.
+## 1. Install `vcpkg`
 
-# Passing the first stage
-
-The entry point for your Redis implementation is in `src/Server.cpp`. Study and
-uncomment the relevant code, and push your changes to pass the first stage:
-
-```sh
-git commit -am "pass 1st stage" # any msg
-git push origin master
+```bash
+wget -qO vcpkg.tar.gz https://github.com/microsoft/vcpkg/archive/master.tar.gz
+sudo mkdir /opt/vcpkg
+sudo tar xf vcpkg.tar.gz --strip-components=1 -C /opt/vcpkg
+sudo /opt/vcpkg/bootstrap-vcpkg.sh
+sudo ln -s /opt/vcpkg/vcpkg /usr/local/bin/vcpkg
+rm -rf vcpkg.tar.gz
 ```
 
-That's all!
+## 2. Set `VCPKG_ROOT` in the environment
 
-# Stage 2 & beyond
+```bash
+echo 'export VCPKG_ROOT=/opt/vcpkg' | sudo tee -a /etc/profile.d/vcpkg.sh
+source /etc/profile.d/vcpkg.sh
+sudo chown -R $USER:$USER /opt/vcpkg
+```
 
-Note: This section is for stages 2 and beyond.
+## 3. Convert .sh to Unix line endings
 
-1. Ensure you have `cmake` installed locally
-1. Run `./your_program.sh` to run your Redis server, which is implemented in
-   `src/Server.cpp`.
-1. Commit your changes and run `git push origin master` to submit your solution
-   to CodeCrafters. Test output will be streamed to your terminal.
+If `dos2unix` is not installed, run this following command
+
+```bash
+sudo apt update
+sudo apt install -y dos2unix
+```
+
+Afterwards, run this command!
+
+```bash
+dos2unix your_program.sh
+```
+
+## 4. Install essential package
+
+```bash
+sudo apt update
+sudo apt install -y build-essential
+```
+
+## 5. Run
+
+```bash
+./your_program.sh
+```
